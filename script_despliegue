@@ -1,0 +1,174 @@
+#!/bin/bash
+
+# deploy.sh - Script para desplegar el template de Dataflow
+
+# Configuración
+PROJECT_ID="tu-proyecto-gcp"
+REGION="us-central1"
+TEMPLATE_PATH="gs://tu-bucket-templates/multi-table-ingestion"
+STAGING_LOCATION="gs://tu-bucket-staging/"
+TEMP_LOCATION="gs://tu-bucket-temp/"
+
+echo "🚀 Desplegando template Multi-Table Ingestion..."
+
+# 1. Compilar el proyecto
+echo "📦 Compilando proyecto..."
+mvn clean compile exec:java \
+    -Dexec.mainClass=com.example.dataflow.MultiTableIngestionTemplate \
+    -Dexec.args="--project=${PROJECT_ID} \
+                 --stagingLocation=${STAGING_LOCATION} \
+                 --tempLocation=${TEMP_LOCATION} \
+                 --templateLocation=${TEMPLATE_PATH} \
+                 --runner=DataflowRunner \
+                 --region=${REGION}"
+
+echo "✅ Template desplegado en: ${TEMPLATE_PATH}"
+
+# 2. Crear el metadata del template
+cat > template_metadata.json << EOF
+{
+  "name": "Multi-Table Ingestion Template",
+  "description": "Template para ingestar múltiples tablas desde bases de datos a BigQuery usando Secret Manager",
+  "parameters": [
+    {
+      "name": "project",
+      "label": "GCP Project ID",
+      "helpText": "ID del proyecto de Google Cloud",
+      "isOptional": false
+    },
+    {
+      "name": "secretName",
+      "label": "Secret Manager Secret Name",
+      "helpText": "Nombre del secreto en Secret Manager que contiene las credenciales de la base de datos",
+      "isOptional": false
+    },
+    {
+      "name": "bigQueryDataset",
+      "label": "BigQuery Dataset",
+      "helpText": "Dataset de BigQuery donde se escribirán las tablas",
+      "isOptional": false
+    },
+    {
+      "name": "tablesToIngest",
+      "label": "Tables to Ingest",
+      "helpText": "Lista de tablas separadas por comas (ej: tabla1,tabla2,tabla3)",
+      "isOptional": false
+    },
+    {
+      "name": "databaseType",
+      "label": "Database Type",
+      "helpText": "Tipo de base de datos (mysql, postgresql, sqlserver)",
+      "isOptional": false
+    },
+    {
+      "name": "sourceDatabase",
+      "label": "Source Database Name",
+      "helpText": "Nombre de la base de datos origen",
+      "isOptional": false
+    },
+    {
+      "name": "writeDisposition",
+      "label": "Write Disposition",
+      "helpText": "Modo de escritura (WRITE_TRUNCATE, WRITE_APPEND)",
+      "isOptional": true
+    }
+  ]
+}
+EOF
+
+# Subir metadata
+gsutil cp template_metadata.json ${TEMPLATE_PATH}_metadata
+
+echo "✅ Metadata subido"
+
+# -----------------------------------------------------------
+# setup_secret.sh - Script para configurar el secreto
+
+echo "🔐 Configurando Secret Manager..."
+
+# Crear el secreto con credenciales de base de datos
+SECRET_NAME="database-credentials"
+
+# Ejemplo de JSON para las credenciales
+cat > db_credentials.json << EOF
+{
+  "host": "tu-host-db.com",
+  "port": "3306",
+  "database": "tu-database",
+  "username": "tu-usuario",
+  "password": "tu-password"
+}
+EOF
+
+# Crear el secreto en Secret Manager
+gcloud secrets create ${SECRET_NAME} \
+    --project=${PROJECT_ID} \
+    --data-file=db_credentials.json
+
+echo "✅ Secreto creado: ${SECRET_NAME}"
+
+# Limpiar archivo temporal
+rm db_credentials.json
+
+# -----------------------------------------------------------
+# run_job.sh - Script para ejecutar el job
+
+echo "▶️  Ejecutando job..."
+
+JOB_NAME="multi-table-ingestion-$(date +%Y%m%d-%H%M%S)"
+
+gcloud dataflow jobs run ${JOB_NAME} \
+    --project=${PROJECT_ID} \
+    --region=${REGION} \
+    --gcs-location=${TEMPLATE_PATH} \
+    --parameters="project=${PROJECT_ID},secretName=${SECRET_NAME},bigQueryDataset=mi_dataset,tablesToIngest=tabla1\\,tabla2\\,tabla3,databaseType=mysql,sourceDatabase=mi_db,writeDisposition=WRITE_TRUNCATE"
+
+echo "✅ Job iniciado: ${JOB_NAME}"
+
+# -----------------------------------------------------------
+# monitoring.sh - Script para monitoreo
+
+echo "📊 Comandos de monitoreo:"
+echo ""
+echo "# Ver jobs activos:"
+echo "gcloud dataflow jobs list --project=${PROJECT_ID} --region=${REGION} --status=active"
+echo ""
+echo "# Ver detalles de un job:"
+echo "gcloud dataflow jobs describe JOB_ID --project=${PROJECT_ID} --region=${REGION}"
+echo ""
+echo "# Ver logs de un job:"
+echo "gcloud dataflow jobs logs JOB_ID --project=${PROJECT_ID} --region=${REGION}"
+echo ""
+echo "# Cancelar un job:"
+echo "gcloud dataflow jobs cancel JOB_ID --project=${PROJECT_ID} --region=${REGION}"
+
+# -----------------------------------------------------------
+# validate_setup.sh - Script de validación
+
+echo "🔍 Validando configuración..."
+
+# Verificar que exista el secreto
+if gcloud secrets describe ${SECRET_NAME} --project=${PROJECT_ID} >/dev/null 2>&1; then
+    echo "✅ Secreto ${SECRET_NAME} existe"
+else
+    echo "❌ Secreto ${SECRET_NAME} no encontrado"
+    exit 1
+fi
+
+# Verificar permisos necesarios
+echo "🔐 Verificando permisos necesarios..."
+echo "- Dataflow Admin"
+echo "- Secret Manager Secret Accessor"
+echo "- BigQuery Data Editor"
+echo "- Storage Admin"
+
+# Verificar que los buckets existan
+for bucket in $(echo "${STAGING_LOCATION} ${TEMP_LOCATION} ${TEMPLATE_PATH}" | tr ' ' '\n' | grep -o 'gs://[^/]*' | sort -u); do
+    if gsutil ls ${bucket} >/dev/null 2>&1; then
+        echo "✅ Bucket ${bucket} accesible"
+    else
+        echo "❌ Bucket ${bucket} no accesible"
+    fi
+done
+
+echo "🎉 Validación completada"
