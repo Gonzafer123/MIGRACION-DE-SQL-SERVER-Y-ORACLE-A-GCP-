@@ -1,0 +1,39 @@
+USE [TABLONES_ANALITICOS]
+GO
+
+/****** Object:  Table [dbo].[_SQL_CLIPROD_COMPLEMENTO_OTROS_202507]    Script Date: 21/8/2025 09:52:30 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[_SQL_CLIPROD_COMPLEMENTO_OTROS_202507](
+	[id_migracion] [bigint] NULL,
+	[id_ingesta] [bigint] NULL,
+	[CUITCLIE] [varchar](50) NULL,
+	[GRUPOGENERAL] [varchar](50) NULL,
+	[TIPOPERD] [varchar](50) NULL,
+	[SEXOCODI] [varchar](50) NULL,
+	[ESTCIVIL] [varchar](50) NULL,
+	[EDAD] [varchar](50) NULL,
+	[PROVINCIA] [varchar](50) NULL,
+	[LOCALIDAD] [varchar](50) NULL,
+	[FEC_ALTA] [varchar](50) NULL,
+	[CANAL_ALTA] [varchar](50) NULL,
+	[USR_RETAIL_UM] [varchar](50) NULL,
+	[USR_CORPORATE_UM] [varchar](50) NULL,
+	[BANCON_EMP_UM] [varchar](50) NULL,
+	[USA_BANCON_U3M] [varchar](50) NULL,
+	[INGRESOS_UM] [varchar](50) NULL,
+	[INGR_PROM_U6M] [varchar](50) NULL,
+	[CALCULO_ING] [varchar](50) NULL,
+	[NRO_EMP] [varchar](50) NULL,
+	[CON_INGR] [varchar](50) NULL,
+	[CAPITA] [varchar](50) NULL,
+	[ES_ESTUDIANTE] [varchar](50) NULL,
+	[ES_JUB_PENS] [varchar](50) NULL,
+	[CTA_TJ_SOCIAL] [varchar](50) NULL,
+	[fecha_carga] [datetime] NULL
+) ON [PRIMARY]
+GO
